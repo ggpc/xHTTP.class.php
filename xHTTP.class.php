@@ -23,33 +23,13 @@
 */
 class xHTTP{
     private $ch;
+    private $request_types = array('GET', 'POST', 'PUT', 'DELETE');
     private $headers = array();
     public function __construct(){
         $this -> ch = curl_init();
         $this -> clearHeaders();
     }
-    /**
-        parse request header data and
-            return human readable array
-    */
-    private function parse_headers($headers){
-        $head = array();
-        foreach($headers as $k => $v){
-            $t = explode(':', $v, 2);
-            if(isset($t[1])){
-                $head[ trim($t[0]) ] = trim( $t[1] );
-            }else{
-                $head[] = $v;
-                if(preg_match("#HTTP/[0-9\.]+\s+([0-9]+)#",$v, $out))
-                    $head['response_code'] = intval($out[1]);
-            }
-        }
-        return $head;
-    }
-    /**
-        basic method to send request
-    */
-    private function x_request($address, $type = 'GET', $data = null){
+    public function x_request($address, $type = 'GET', $data = null){
         $headers = $this -> getHeaders();
         $opts = array(
             'http' => array(
@@ -67,7 +47,7 @@ class xHTTP{
             if($type == 'GET'){
                 $address .= '?'.http_build_query($data);
             }else{
-                $opts['http']['content'] = http_build_query($data);
+                $opts['http']['content'] = is_array($data)?http_build_query($data):$data;
             }
         }
 
@@ -78,8 +58,20 @@ class xHTTP{
         if($response === false){
             throw new Exception('request error');
         }
-        $response = array('response' => $response, 'headers' => $this -> parse_headers($http_response_header));
 
+        $headers = parse_headers($http_response_header);
+        $response = array('response' => $response, 'headers' => $headers);
+        // try to get json data
+        if(strtolower($headers['Content-Type']) == 'application/json'){
+            try{
+                $response_json = json_decode($response['response'], true);
+                if($response_json !== null){
+                    $response['response_json'] = $response_json;
+                }
+            }catch(Exception $e){
+
+            }
+        }
         return $response;
     }
     private function getHeaders(){
